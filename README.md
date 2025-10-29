@@ -6,7 +6,7 @@
 
 ---
 
-## 🧩 **Problem Statement & Description**
+## **Problem Statement & Description**
 
 ### **The Problem**
 Cloud kitchen platforms must frequently update live menus because dishes may go out of stock (maybe due to ingredient shortages), and today’s specials or seasonal offerings change quite often.  
@@ -50,13 +50,13 @@ Each deployment:
 
 ---
 
-## 🍽️ **Tagline**
+## **Tagline**
 
 > ### **“ChefOps: Serving seamless deployments, hot and ready.”**
 
 ---
 
-## 🔁 **Use Case: Update Menu Item Availability**
+## **Use Case: Update Menu Item Availability**
 
 ### **Preconditions**
 - Developer has access to the repository  
@@ -92,7 +92,7 @@ Each deployment:
 
 ---
 
-## ⚙️ **Pipeline Design**
+## **Pipeline Design**
 
 ### **Architecture Overview**
 The **ChefOps** pipeline automates build, test, and deployment for the cloud kitchen platform.  
