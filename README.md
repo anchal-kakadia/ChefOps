@@ -107,25 +107,25 @@ Each deployment:
 
 - Tools: GitHub Actions, ESLint, Jest
 - Workflow performs:
-- Linting: Ensures code quality and consistent standards.
-- Testing: Runs Jest test suites for menu APIs, order logic, and database interactions.
-- Security Scans: Uses npm audit or Dependabot for dependency vulnerabilities.
+   - Linting: Ensures code quality and consistent standards.
+   - Testing: Runs Jest test suites for menu APIs, order logic, and database        interactions.
+   - Security Scans: Uses npm audit or Dependabot for dependency vulnerabilities.
 
 **3. Build & Containerization**
 
 - Tools: Docker, GitHub Container Registry (GHCR)
 - Successful builds are:
-- Packaged into Docker images
-- Tagged with version or commit hash
-- Pushed to GHCR for traceability and rollback readiness
+   - Packaged into Docker images
+   - Tagged with version or commit hash
+   - Pushed to GHCR for traceability and rollback readiness
 
 **4. Continuous Deployment (CD)**
 
 - Tools: Ansible, SSH, Environment Variables
 - Ansible playbooks handle:
-- Staging and production deployment
-- Container restarts or replacements
-- Environment variable setup and configuration consistency
+   - Staging and production deployment
+   - Container restarts or replacements
+   - Environment variable setup and configuration consistency
 
 **5. Verification & Promotion**
 
