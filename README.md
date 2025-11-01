@@ -94,8 +94,7 @@ Each deployment:
 
 ## **Pipeline Design**
 
-### **Architecture Overview**
-**Detailed Architecture Explanation**
+### **Detailed Architecture Explanation**
 
 **1. Developer Stage**
 
