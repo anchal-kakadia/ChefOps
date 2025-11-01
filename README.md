@@ -130,7 +130,7 @@ Each deployment:
 **5. Verification & Promotion**
 
 - Staging deployment is automatically tested (health checks, menu endpoint response).
-- Upon success, Ansible promotes the same image to production — ensuring build immutability.
+- Upon success, Ansible promotes the same image to production thus ensuring build immutability.
 
 **6. Monitoring & Notifications**
 
