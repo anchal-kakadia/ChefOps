@@ -95,8 +95,52 @@ Each deployment:
 ## **Pipeline Design**
 
 ### **Architecture Overview**
-The **ChefOps** pipeline automates build, test, and deployment for the cloud kitchen platform.  
-It follows a modular **CI/CD architecture** using **GitHub Actions**, **Docker**, and **Ansible** to ensure consistency, automation, and atomic deployments.
+**Detailed Architecture Explanation**
+
+**1. Developer Stage**
+
+- Tool: GitHub
+- Developers push or submit PRs to the main or release branches.
+- Each push triggers GitHub Actions workflows automatically.
+
+**2. Continuous Integration (CI)**
+
+- Tools: GitHub Actions, ESLint, Jest
+- Workflow performs:
+- Linting: Ensures code quality and consistent standards.
+- Testing: Runs Jest test suites for menu APIs, order logic, and database interactions.
+- Security Scans: Uses npm audit or Dependabot for dependency vulnerabilities.
+
+**3. Build & Containerization**
+
+- Tools: Docker, GitHub Container Registry (GHCR)
+- Successful builds are:
+- Packaged into Docker images
+- Tagged with version or commit hash
+- Pushed to GHCR for traceability and rollback readiness
+
+**4. Continuous Deployment (CD)**
+
+- Tools: Ansible, SSH, Environment Variables
+- Ansible playbooks handle:
+- Staging and production deployment
+- Container restarts or replacements
+- Environment variable setup and configuration consistency
+
+**5. Verification & Promotion**
+
+- Staging deployment is automatically tested (health checks, menu endpoint response).
+- Upon success, Ansible promotes the same image to production — ensuring build immutability.
+
+**6. Monitoring & Notifications**
+
+- GitHub Actions logs and Slack notifications provide transparency.
+- Deployment results and errors are posted to communication channels for rapid feedback.
+
+**7. Rollback Mechanism**
+
+- Each release is versioned via Docker tags.
+- If a deployment fails, Ansible pulls and redeploys the previous stable image, ensuring minimal downtime.
 
 ---
 
