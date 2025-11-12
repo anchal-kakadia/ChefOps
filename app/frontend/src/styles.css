@@ -1,0 +1,78 @@
+:root {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.6;
+  color: #1f2933;
+  background-color: #f8fafc;
+}
+
+body {
+  margin: 0;
+}
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+}
+
+.hero {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.hero h1 {
+  margin: 0 0 0.5rem;
+  font-size: 2.5rem;
+}
+
+.hero p {
+  margin: 0;
+  color: #52606d;
+}
+
+.status {
+  text-align: center;
+  color: #334155;
+  font-weight: 500;
+}
+
+.status.error {
+  color: #dc2626;
+}
+
+.menu {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+}
+
+.menu-item {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.menu-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.15);
+}
+
+.menu-item h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+}
+
+.menu-item .category {
+  margin: 0 0 1rem;
+  font-weight: 600;
+  color: #3b82f6;
+}
+
+.menu-item .price {
+  margin-top: 1.5rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #111827;
+}
