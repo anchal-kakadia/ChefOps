@@ -31,7 +31,7 @@ jobs:
           cache: 'npm'
 
       - name: Install backend dependencies
-        run: npm ci
+        run: npm install
         working-directory: app/backend
 
       - name: Run backend lint
@@ -43,7 +43,7 @@ jobs:
         working-directory: app/backend
 
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm install
         working-directory: app/frontend
 
       - name: Run frontend lint
