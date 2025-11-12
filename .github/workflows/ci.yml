@@ -11,6 +11,7 @@ on:
 permissions:
   contents: read
   packages: read
+  secrets: inherit
 
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/chefops-backend
