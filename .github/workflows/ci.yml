@@ -59,7 +59,7 @@ jobs:
       - name: Build Docker image
         run: docker build -t "$IMAGE_NAME:$IMAGE_TAG" -t "$IMAGE_NAME:latest" app/backend
 
-      - name: Push Docker image (tagged)
+      - name: Push Docker image
         run: |
           docker push "$IMAGE_NAME:$IMAGE_TAG"
           docker push "$IMAGE_NAME:latest"
