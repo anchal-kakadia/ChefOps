@@ -68,6 +68,7 @@ Such manual processes lead to:
 
 - Extend GitHub Actions workflow to automatically trigger builds when menu item prices or availability change.
 - Add integration tests in the pipeline to validate end-to-end backend and frontend functionality.
+- According to Gitflow model, a typical CI/CD setup should trigger deployment to production on the main branch, not the release branch, so need to fix that.
 - Implement multi-stage Docker builds for optimized image size and faster deployment.
 - Time estimate: 1 week.
 
