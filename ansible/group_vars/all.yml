@@ -1,0 +1,12 @@
+---
+chefops_docker_image: "{{ lookup('env', 'DOCKER_IMAGE') | default('your-dockerhub-username/chefops-backend', true) }}"
+chefops_docker_tag: latest
+chefops_previous_tag: previous
+chefops_container_name: chefops-backend
+chefops_port: 4000
+chefops_use_previous: false
+chefops_healthcheck_url: "http://{{ ansible_host | default(inventory_hostname) }}:{{ chefops_port }}/menu"
+
+# Optional Docker Hub credentials (prefer Ansible Vault or env vars in CI/CD)
+docker_hub_username: "{{ lookup('env', 'DOCKERHUB_USERNAME') | default(omit, true) }}"
+docker_hub_token: "{{ lookup('env', 'DOCKERHUB_TOKEN') | default(omit, true) }}"

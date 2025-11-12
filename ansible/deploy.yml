@@ -1,0 +1,61 @@
+---
+- name: Deploy ChefOps backend
+  hosts: chefops
+  become: true
+  vars:
+    deploy_tag: "{{ chefops_previous_tag if chefops_use_previous else chefops_docker_tag }}"
+  pre_tasks:
+    - name: Ensure required packages for Docker are present
+      ansible.builtin.package:
+        name:
+          - docker.io
+        state: present
+
+    - name: Ensure Docker service is running
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Authenticate against Docker Hub (optional)
+      community.docker.docker_login:
+        username: "{{ docker_hub_username }}"
+        password: "{{ docker_hub_token }}"
+      when:
+        - docker_hub_username is defined
+        - docker_hub_token is defined
+
+  tasks:
+    - name: Pull desired ChefOps backend image
+      community.docker.docker_image:
+        name: "{{ chefops_docker_image }}"
+        tag: "{{ deploy_tag }}"
+        source: pull
+        force_source: true
+
+    - name: Deploy ChefOps backend container
+      community.docker.docker_container:
+        name: "{{ chefops_container_name }}"
+        image: "{{ chefops_docker_image }}:{{ deploy_tag }}"
+        restart_policy: always
+        published_ports:
+          - "{{ chefops_port }}:4000"
+        env:
+          NODE_ENV: production
+        recreate: true
+        state: started
+
+    - name: Validate service availability
+      ansible.builtin.uri:
+        url: "{{ chefops_healthcheck_url }}"
+        status_code: 200
+        validate_certs: false
+      register: healthcheck
+      retries: 5
+      delay: 5
+      until: healthcheck.status == 200
+
+  post_tasks:
+    - name: Show deployed image information
+      ansible.builtin.debug:
+        msg: "Deployed {{ chefops_docker_image }}:{{ deploy_tag }} to {{ inventory_hostname }}"
