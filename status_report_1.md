@@ -50,9 +50,10 @@ Such manual processes lead to:
 
 **Representative GitHub commits:**
 
-- Initialized Backend  - 87d57f4cb0aebdc98becec03933763993789c556
-- Frontend minimal SPA integration - c65eedfc845df56d4955218622e60b110523a710
-- CI/CD workflow & Ansible deployment - e5fdab3d189aa9e2129ca91c978f05781d1c53b9 & 655877d6dccade04743e2369a15e2a5500ae0913
+- Initialized Backend  - 87d57f4cb0aebdc98becec03933763993789c556 (https://github.com/anchal-kakadia/ChefOps/commit/87d57f4cb0aebdc98becec03933763993789c556)
+- Frontend minimal SPA integration - c65eedfc845df56d4955218622e60b110523a710 (https://github.com/anchal-kakadia/ChefOps/commit/c65eedfc845df56d4955218622e60b110523a710)
+- CI/CD workflow & Ansible deployment - e5fdab3d189aa9e2129ca91c978f05781d1c53b9 (https://github.com/anchal-kakadia/ChefOps/commit/e5fdab3d189aa9e2129ca91c978f05781d1c53b9)
+& 655877d6dccade04743e2369a15e2a5500ae0913(https://github.com/anchal-kakadia/ChefOps/commit/655877d6dccade04743e2369a15e2a5500ae0913)
 
 ### **3. Next Steps**
 
