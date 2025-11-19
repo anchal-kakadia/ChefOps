@@ -1,0 +1,49 @@
+{
+  "items": [
+    {
+      "id": "1",
+      "name": "Margherita Pizza",
+      "description": "Classic pizza with tomato sauce, mozzarella, and basil",
+      "price": 14.99,
+      "category": "Pizza",
+      "available": true,
+      "isSpecial": false
+    },
+    {
+      "id": "2",
+      "name": "Pepperoni Pizza",
+      "description": "Pizza loaded with pepperoni and cheese",
+      "price": 14.99,
+      "category": "Pizza",
+      "available": true,
+      "isSpecial": false
+    },
+    {
+      "id": "3",
+      "name": "Caesar Salad",
+      "description": "Fresh romaine with caesar dressing and croutons",
+      "price": 8.99,
+      "category": "Salad",
+      "available": true,
+      "isSpecial": false
+    },
+    {
+      "id": "4",
+      "name": "Pasta Carbonara",
+      "description": "Creamy pasta with bacon and parmesan",
+      "price": 13.99,
+      "category": "Pasta",
+      "available": false,
+      "isSpecial": false
+    },
+    {
+      "id": "5",
+      "name": "Grilled Chicken Bowl",
+      "description": "Healthy bowl with grilled chicken and vegetables",
+      "price": 11.99,
+      "category": "Bowls",
+      "available": true,
+      "isSpecial": true
+    }
+  ]
+}
