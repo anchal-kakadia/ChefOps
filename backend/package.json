@@ -12,7 +12,11 @@
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix"
   },
-  "keywords": ["devops", "cloud-kitchen", "cicd"],
+  "keywords": [
+    "devops",
+    "cloud-kitchen",
+    "cicd"
+  ],
   "author": "Anchal Kakadia",
   "license": "MIT",
   "dependencies": {

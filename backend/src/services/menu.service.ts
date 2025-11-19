@@ -1,12 +1,12 @@
-import fs from 'fs';
-import path from 'path';
-import { MenuItem, MenuUpdateRequest } from '../models/menu.model';
+import fs from "fs";
+import path from "path";
+import { MenuItem, MenuUpdateRequest } from "../models/menu.model";
 
-const MENU_FILE_PATH = path.join(__dirname, '../data/menu.json');
+const MENU_FILE_PATH = path.join(__dirname, "../data/menu.json");
 
 export class MenuService {
   private readMenuData(): { items: MenuItem[] } {
-    const data = fs.readFileSync(MENU_FILE_PATH, 'utf-8');
+    const data = fs.readFileSync(MENU_FILE_PATH, "utf-8");
     return JSON.parse(data);
   }
 
@@ -52,10 +52,12 @@ export class MenuService {
     return data.items[itemIndex];
   }
 
-  createItem(item: Omit<MenuItem, 'id'>): MenuItem {
+  createItem(item: Omit<MenuItem, "id">): MenuItem {
     const data = this.readMenuData();
-    const newId = (Math.max(...data.items.map((i) => parseInt(i.id, 10))) + 1).toString();
-    
+    const newId = (
+      Math.max(...data.items.map((i) => parseInt(i.id, 10))) + 1
+    ).toString();
+
     const newItem: MenuItem = {
       id: newId,
       ...item,

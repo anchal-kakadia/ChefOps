@@ -1,8 +1,8 @@
-import express, { Application } from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import menuRoutes from './routes/menu.routes';
-import { errorHandler } from './middleware/errorHandler';
+import express, { Application } from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import menuRoutes from "./routes/menu.routes";
+import { errorHandler } from "./middleware/errorHandler";
 
 dotenv.config();
 
@@ -14,12 +14,12 @@ app.use(cors());
 app.use(express.json());
 
 // Health check endpoint
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // Routes
-app.use('/api', menuRoutes);
+app.use("/api", menuRoutes);
 
 // Error handling
 app.use(errorHandler);
