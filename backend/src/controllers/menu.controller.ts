@@ -1,5 +1,5 @@
-import { Request, Response } from "express";
-import { MenuService } from "../services/menu.service";
+import { Request, Response } from 'express';
+import { MenuService } from '../services/menu.service';
 
 const menuService = new MenuService();
 
@@ -10,7 +10,7 @@ export const getAllMenuItems = (_req: Request, res: Response): void => {
   } catch (error) {
     res
       .status(500)
-      .json({ success: false, error: "Failed to fetch menu items" });
+      .json({ success: false, error: 'Failed to fetch menu items' });
   }
 };
 
@@ -20,7 +20,7 @@ export const getMenuItem = (req: Request, res: Response): void => {
     const item = menuService.getItemById(id);
 
     if (!item) {
-      res.status(404).json({ success: false, error: "Item not found" });
+      res.status(404).json({ success: false, error: 'Item not found' });
       return;
     }
 
@@ -28,7 +28,7 @@ export const getMenuItem = (req: Request, res: Response): void => {
   } catch (error) {
     res
       .status(500)
-      .json({ success: false, error: "Failed to fetch menu item" });
+      .json({ success: false, error: 'Failed to fetch menu item' });
   }
 };
 
@@ -39,7 +39,7 @@ export const getAvailableMenuItems = (_req: Request, res: Response): void => {
   } catch (error) {
     res
       .status(500)
-      .json({ success: false, error: "Failed to fetch available items" });
+      .json({ success: false, error: 'Failed to fetch available items' });
   }
 };
 
@@ -50,7 +50,7 @@ export const getSpecialMenuItems = (_req: Request, res: Response): void => {
   } catch (error) {
     res
       .status(500)
-      .json({ success: false, error: "Failed to fetch special items" });
+      .json({ success: false, error: 'Failed to fetch special items' });
   }
 };
 
@@ -60,34 +60,32 @@ export const updateMenuItem = (req: Request, res: Response): void => {
     const updates = req.body;
 
     // Validate update fields
-    const allowedUpdates = ["price", "available", "isSpecial"];
+    const allowedUpdates = ['price', 'available', 'isSpecial'];
     const updateKeys = Object.keys(updates);
-    const isValidUpdate = updateKeys.every((key) =>
-      allowedUpdates.includes(key)
-    );
+    const isValidUpdate = updateKeys.every((key) => allowedUpdates.includes(key));
 
     if (!isValidUpdate) {
       res.status(400).json({
         success: false,
-        error: "Invalid updates. Allowed: price, available, isSpecial",
+        error: 'Invalid updates. Allowed: price, available, isSpecial',
       });
       return;
     }
 
     if (
-      updates.price !== undefined &&
-      (typeof updates.price !== "number" || updates.price < 0)
+      updates.price !== undefined
+      && (typeof updates.price !== 'number' || updates.price < 0)
     ) {
       res
         .status(400)
-        .json({ success: false, error: "Price must be a positive number" });
+        .json({ success: false, error: 'Price must be a positive number' });
       return;
     }
 
     const updatedItem = menuService.updateItem(id, updates);
 
     if (!updatedItem) {
-      res.status(404).json({ success: false, error: "Item not found" });
+      res.status(404).json({ success: false, error: 'Item not found' });
       return;
     }
 
@@ -95,28 +93,29 @@ export const updateMenuItem = (req: Request, res: Response): void => {
   } catch (error) {
     res
       .status(500)
-      .json({ success: false, error: "Failed to update menu item" });
+      .json({ success: false, error: 'Failed to update menu item' });
   }
 };
 
 export const createMenuItem = (req: Request, res: Response): void => {
   try {
-    const { name, description, price, category, available, isSpecial } =
-      req.body;
+    const {
+      name, description, price, category, available, isSpecial,
+    } = req.body;
 
     // Validation
     if (!name || !description || price === undefined || !category) {
       res.status(400).json({
         success: false,
-        error: "Missing required fields: name, description, price, category",
+        error: 'Missing required fields: name, description, price, category',
       });
       return;
     }
 
-    if (typeof price !== "number" || price < 0) {
+    if (typeof price !== 'number' || price < 0) {
       res
         .status(400)
-        .json({ success: false, error: "Price must be a positive number" });
+        .json({ success: false, error: 'Price must be a positive number' });
       return;
     }
 
@@ -133,7 +132,7 @@ export const createMenuItem = (req: Request, res: Response): void => {
   } catch (error) {
     res
       .status(500)
-      .json({ success: false, error: "Failed to create menu item" });
+      .json({ success: false, error: 'Failed to create menu item' });
   }
 };
 
@@ -143,14 +142,14 @@ export const deleteMenuItem = (req: Request, res: Response): void => {
     const deleted = menuService.deleteItem(id);
 
     if (!deleted) {
-      res.status(404).json({ success: false, error: "Item not found" });
+      res.status(404).json({ success: false, error: 'Item not found' });
       return;
     }
 
-    res.json({ success: true, message: "Item deleted successfully" });
+    res.json({ success: true, message: 'Item deleted successfully' });
   } catch (error) {
     res
       .status(500)
-      .json({ success: false, error: "Failed to delete menu item" });
+      .json({ success: false, error: 'Failed to delete menu item' });
   }
 };

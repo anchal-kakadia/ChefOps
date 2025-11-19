@@ -1,15 +1,18 @@
-import fs from "fs";
-import path from "path";
-import { MenuItem, MenuUpdateRequest } from "../models/menu.model";
+import fs from 'fs';
+import path from 'path';
+import { MenuItem, MenuUpdateRequest } from '../models/menu.model';
 
-const MENU_FILE_PATH = path.join(__dirname, "../data/menu.json");
+const MENU_FILE_PATH = path.join(__dirname, '../data/menu.json');
 
+// eslint-disable-next-line import/prefer-default-export
 export class MenuService {
+  // eslint-disable-next-line class-methods-use-this
   private readMenuData(): { items: MenuItem[] } {
-    const data = fs.readFileSync(MENU_FILE_PATH, "utf-8");
+    const data = fs.readFileSync(MENU_FILE_PATH, 'utf-8');
     return JSON.parse(data);
   }
 
+  // eslint-disable-next-line class-methods-use-this
   private writeMenuData(data: { items: MenuItem[] }): void {
     fs.writeFileSync(MENU_FILE_PATH, JSON.stringify(data, null, 2));
   }
@@ -52,7 +55,7 @@ export class MenuService {
     return data.items[itemIndex];
   }
 
-  createItem(item: Omit<MenuItem, "id">): MenuItem {
+  createItem(item: Omit<MenuItem, 'id'>): MenuItem {
     const data = this.readMenuData();
     const newId = (
       Math.max(...data.items.map((i) => parseInt(i.id, 10))) + 1

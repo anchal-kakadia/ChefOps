@@ -1,15 +1,16 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from 'express';
 
+// eslint-disable-next-line import/prefer-default-export
 export const errorHandler = (
   err: Error,
   _req: Request,
   res: Response,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _next: NextFunction
+  _next: NextFunction,
 ): void => {
-  console.error("Error:", err.message);
+  console.error('Error:', err.message);
   res.status(500).json({
     success: false,
-    error: "Internal server error",
+    error: 'Internal server error',
   });
 };
