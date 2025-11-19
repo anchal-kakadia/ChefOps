@@ -124,7 +124,7 @@ function App() {
               fontWeight: "bold",
             }}
           >
-            Today's Specials
+            Today&apos;s Specials
           </button>
           <button
             onClick={fetchMenuItems}

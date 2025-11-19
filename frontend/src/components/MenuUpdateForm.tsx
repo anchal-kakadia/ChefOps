@@ -168,7 +168,7 @@ export const MenuUpdateForm: React.FC<MenuUpdateFormProps> = ({
                 }}
               />
               <span style={{ fontWeight: "bold", color: "#555" }}>
-                Mark as Today's Special
+                Mark as Today&apos;s Special
               </span>
             </label>
           </div>
