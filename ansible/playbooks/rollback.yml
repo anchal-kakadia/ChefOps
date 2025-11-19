@@ -1,0 +1,88 @@
+---
+- name: Rollback ChefOps Deployment
+  hosts: vcl
+  become: yes
+  vars_files:
+    - ../vars/main.yml
+
+  tasks:
+    - name: Get list of backend images
+      docker_host_info:
+        images: yes
+        images_filters:
+          reference: "{{ backend_image | regex_replace(':.*', '') }}"
+      register: backend_images
+
+    - name: Get list of frontend images
+      docker_host_info:
+        images: yes
+        images_filters:
+          reference: "{{ frontend_image | regex_replace(':.*', '') }}"
+      register: frontend_images
+
+    - name: Find previous stable backend image
+      set_fact:
+        rollback_backend_image: "{{ backend_images.images | sort(attribute='Created', reverse=True) | map(attribute='RepoTags') | list | flatten | select('search', backend_image | regex_replace(':.*', '')) | list | select('!=', backend_image) | first | default(backend_image) }}"
+
+    - name: Find previous stable frontend image
+      set_fact:
+        rollback_frontend_image: "{{ frontend_images.images | sort(attribute='Created', reverse=True) | map(attribute='RepoTags') | list | flatten | select('search', frontend_image | regex_replace(':.*', '')) | list | select('!=', frontend_image) | first | default(frontend_image) }}"
+
+    - name: Display rollback information
+      debug:
+        msg: |
+          🔄 Rolling back to previous versions:
+          - Backend: {{ rollback_backend_image }}
+          - Frontend: {{ rollback_frontend_image }}
+
+    - name: Stop current production backend
+      docker_container:
+        name: "{{ backend_container_name }}"
+        state: stopped
+
+    - name: Deploy previous backend version
+      docker_container:
+        name: "{{ backend_container_name }}"
+        image: "{{ rollback_backend_image }}"
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "{{ backend_port }}:3000"
+        env:
+          NODE_ENV: production
+          PORT: "3000"
+        networks:
+          - name: "{{ docker_network }}"
+
+    - name: Wait for rollback backend health check
+      uri:
+        url: "http://localhost:{{ backend_port }}/health"
+        status_code: 200
+      register: rollback_health
+      until: rollback_health.status == 200
+      retries: "{{ health_check_retries }}"
+      delay: "{{ health_check_delay }}"
+
+    - name: Stop current production frontend
+      docker_container:
+        name: "{{ frontend_container_name }}"
+        state: stopped
+
+    - name: Deploy previous frontend version
+      docker_container:
+        name: "{{ frontend_container_name }}"
+        image: "{{ rollback_frontend_image }}"
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "{{ frontend_port }}:8080"
+        networks:
+          - name: "{{ docker_network }}"
+
+    - name: Display rollback success message
+      debug:
+        msg: |
+          ✅ Rollback successful!
+          - Application restored to previous stable version
+          - Backend: {{ rollback_backend_image }}
+          - Frontend: {{ rollback_frontend_image }}

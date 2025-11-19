@@ -1,0 +1,27 @@
+---
+# Application configuration (in your home directory - no sudo needed)
+app_directory: /home/akakadi/chefops
+docker_network: chefops-network
+
+# Backend configuration - Use port 3000 (OPEN)
+backend_container_name: chefops-backend
+backend_port: 3000
+backend_image: "{{ backend_image | default('ghcr.io/akakadi/chefops-backend:latest') }}"
+
+# Frontend configuration - Use port 80 (OPEN)
+frontend_container_name: chefops-frontend
+frontend_port: 80
+frontend_image: "{{ frontend_image | default('ghcr.io/akakadi/chefops-frontend:latest') }}"
+
+# GitHub Container Registry
+ghcr_registry: ghcr.io
+ghcr_username: "{{ ghcr_username }}"
+ghcr_token: "{{ ghcr_token }}"
+
+# Deployment strategy
+deployment_strategy: blue_green
+health_check_retries: 5
+health_check_delay: 5
+
+# NO SUDO - all operations run as regular user
+ansible_become: no
