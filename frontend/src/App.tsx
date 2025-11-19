@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MenuList } from "./components/MenuList";
 import { MenuUpdateForm } from "./components/MenuUpdateForm";
 import { MenuItem } from "./types/menu.types";
@@ -11,7 +11,7 @@ function App() {
   const [error, setError] = useState<string>("");
   const [filter, setFilter] = useState<"all" | "available" | "specials">("all");
 
-  const fetchMenuItems = async () => {
+  const fetchMenuItems = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
@@ -34,11 +34,11 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]); // Add filter as dependency here
 
   useEffect(() => {
     fetchMenuItems();
-  }, [filter]);
+  }, [fetchMenuItems]); // Now include fetchMenuItems
 
   const handleUpdateItem = async (id: string, updates: Partial<MenuItem>) => {
     await api.updateMenuItem(id, updates);
