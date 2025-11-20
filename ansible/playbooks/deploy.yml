@@ -13,10 +13,10 @@
         -p {{ ghcr_token }}
       no_log: true
 
-    - name: Pull latest backend image
+    - name: Pull the latest backend image
       command: docker pull {{ backend_image }}
 
-    - name: Pull latest frontend image
+    - name: Pull the latest frontend image
       command: docker pull {{ frontend_image }}
 
     # BACKEND DEPLOYMENT
