@@ -230,6 +230,5 @@ For this project to be considered complete:
 - [ ] Deployed to NCSU VCL testing
 - [ ] Demo video recorded
 - [ ] Final documentation complete
-- [ ] Presentation slides prepared
 
 ---
