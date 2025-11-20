@@ -61,7 +61,7 @@ function App() {
             🍕 ChefOps Cloud Kitchen
           </h1>
           <p style={{ margin: "8px 0 0 0", opacity: 0.9 }}>
-            Serving seamless deployments, hot and ready
+            Serving seamless deployments, hot and ready!
           </p>
         </div>
       </header>
