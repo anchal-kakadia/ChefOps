@@ -96,7 +96,7 @@ jobs:
 
   deploy:
     name: Deploy to NCSU VM
-    runs-on: self-hosted  # ← Changed from ubuntu-latest
+    runs-on: self-hosted
     needs: build-and-push
     if: github.ref == 'refs/heads/release'
     
@@ -107,23 +107,47 @@ jobs:
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Pull and deploy backend
+      - name: Pull backend image
+        run: docker pull ghcr.io/${{ github.repository_owner }}/chefops-backend:latest
+
+      - name: Pull frontend image
+        run: docker pull ghcr.io/${{ github.repository_owner }}/chefops-frontend:latest
+
+      - name: Deploy backend
         run: |
-          docker pull ghcr.io/${{ github.repository_owner }}/chefops-backend:latest
           docker stop chefops-backend || true
           docker rm chefops-backend || true
-          docker run -d --name chefops-backend --network chefops-network -p 3000:3000 \
-            -e NODE_ENV=production -e PORT=3000 --restart unless-stopped \
+          docker run -d --name chefops-backend \
+            --network chefops-network \
+            -p 3000:3000 \
+            -e NODE_ENV=production \
+            -e PORT=3000 \
+            --restart unless-stopped \
             ghcr.io/${{ github.repository_owner }}/chefops-backend:latest
 
-      - name: Pull and deploy frontend
+      - name: Deploy frontend
         run: |
-          docker pull ghcr.io/${{ github.repository_owner }}/chefops-frontend:latest
           docker stop chefops-frontend || true
           docker rm chefops-frontend || true
-          docker run -d --name chefops-frontend --network chefops-network -p 80:8080 \
+          docker run -d --name chefops-frontend \
+            --network chefops-network \
+            -p 80:8080 \
             --restart unless-stopped \
             ghcr.io/${{ github.repository_owner }}/chefops-frontend:latest
 
+      - name: Wait for backend health check
+        run: |
+          for i in {1..10}; do
+            if curl -f http://localhost:3000/health; then
+              echo "Backend is healthy!"
+              break
+            fi
+            echo "Waiting for backend... attempt $i"
+            sleep 5
+          done
+
       - name: Clean up old images
         run: docker image prune -f
+
+      - name: Show running containers
+        run: docker ps
