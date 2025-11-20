@@ -95,34 +95,54 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    name: Deploy to NCSU VM
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.ref == 'refs/heads/release'
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+  name: Deploy to NCSU VM
+  runs-on: ubuntu-latest
+  needs: build-and-push
+  if: github.ref == 'refs/heads/release'
+  
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.VCL_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.VCL_HOST }} >> ~/.ssh/known_hosts
+    - name: Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        echo "${{ secrets.VCL_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        # Hardcode the hostname to avoid secret issues
+        ssh-keyscan -H csc519-109-host.csc.ncsu.edu >> ~/.ssh/known_hosts
 
-      - name: Install Ansible
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ansible
+    - name: Install Ansible
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ansible
 
-      - name: Deploy with Ansible
-        working-directory: ./ansible
-        run: |
-          ansible-playbook playbooks/deploy.yml -i inventory.ini \
-            -e "ghcr_username=${{ github.actor }}" \
-            -e "ghcr_token=${{ secrets.GITHUB_TOKEN }}" \
-            -e "backend_image=ghcr.io/${{ github.repository_owner }}/chefops-backend:latest" \
-            -e "frontend_image=ghcr.io/${{ github.repository_owner }}/chefops-frontend:latest"
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: False
+    - name: Create Ansible inventory dynamically
+      working-directory: ./ansible
+      run: |
+        cat > inventory.ini << EOF
+        [vcl]
+        csc519-109-host.csc.ncsu.edu ansible_user=akakadi ansible_ssh_private_key_file=~/.ssh/id_rsa
+        
+        [vcl:vars]
+        ansible_python_interpreter=/usr/bin/python3
+        ansible_become=no
+        EOF
+        echo "Created inventory:"
+        cat inventory.ini
+
+    - name: Test SSH Connection
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa akakadi@csc519-109-host.csc.ncsu.edu "echo 'SSH connection successful'"
+
+    - name: Deploy with Ansible
+      working-directory: ./ansible
+      run: |
+        ansible-playbook playbooks/deploy.yml -i inventory.ini \
+          -e "ghcr_username=${{ github.actor }}" \
+          -e "ghcr_token=${{ secrets.GITHUB_TOKEN }}" \
+          -e "backend_image=ghcr.io/${{ github.repository_owner }}/chefops-backend:latest" \
+          -e "frontend_image=ghcr.io/${{ github.repository_owner }}/chefops-frontend:latest"
+      env:
+        ANSIBLE_HOST_KEY_CHECKING: False
