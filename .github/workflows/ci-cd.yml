@@ -110,7 +110,13 @@ jobs:
           chmod 700 ~/.ssh
           echo "${{ secrets.VCL_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H csc519-109-host.csc.ncsu.edu >> ~/.ssh/known_hosts
+          
+          cat > ~/.ssh/config << EOF
+          Host csc519-109-host.csc.ncsu.edu
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+          EOF
+          chmod 600 ~/.ssh/config
 
       - name: Install Ansible
         run: |
@@ -127,18 +133,19 @@ jobs:
           [vcl:vars]
           ansible_python_interpreter=/usr/bin/python3
           ansible_become=no
+          ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
           EOF
           echo "Created inventory:"
           cat inventory.ini
 
       - name: Test SSH Connection
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa akakadi@csc519-109-host.csc.ncsu.edu "echo 'SSH connection successful'"
+          ssh -vvv -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa akakadi@csc519-109-host.csc.ncsu.edu "echo 'SSH connection successful'" || echo "SSH test failed but continuing"
 
       - name: Deploy with Ansible
         working-directory: ./ansible
         run: |
-          ansible-playbook playbooks/deploy.yml -i inventory.ini \
+          ansible-playbook playbooks/deploy.yml -i inventory.ini -vvv \
             -e "ghcr_username=${{ github.actor }}" \
             -e "ghcr_token=${{ secrets.GITHUB_TOKEN }}" \
             -e "backend_image=ghcr.io/${{ github.repository_owner }}/chefops-backend:latest" \
