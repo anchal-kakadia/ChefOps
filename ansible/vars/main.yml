@@ -3,21 +3,15 @@
 app_directory: /home/akakadi/chefops
 docker_network: chefops-network
 
-# Backend / Frontend images (overridden via CLI)
+# Backend configuration - Use port 3000 (OPEN)
+backend_container_name: chefops-backend
+backend_port: 3000
 backend_image: "{{ backend_image | default('ghcr.io/akakadi/chefops-backend:latest') }}"
+
+# Frontend configuration - Use port 80 (OPEN)
+frontend_container_name: chefops-frontend
+frontend_port: 80
 frontend_image: "{{ frontend_image | default('ghcr.io/akakadi/chefops-frontend:latest') }}"
-
-# Production configuration
-production_backend_container_name: chefops-backend
-production_backend_port: 3000
-production_frontend_container_name: chefops-frontend
-production_frontend_port: 80
-
-# Staging configuration (blue environment - different ports)
-staging_backend_container_name: chefops-backend-staging
-staging_backend_port: 3001
-staging_frontend_container_name: chefops-frontend-staging
-staging_frontend_port: 8081
 
 # GitHub Container Registry
 ghcr_registry: ghcr.io
@@ -26,7 +20,6 @@ ghcr_token: "{{ ghcr_token }}"
 
 # Deployment strategy
 deployment_strategy: blue_green
-deploy_target: "{{ deploy_target | default('staging') }}"
 health_check_retries: 5
 health_check_delay: 5
 
