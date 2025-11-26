@@ -2,9 +2,9 @@ name: ChefOps CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, release ]
+    branches: [main, release]
   pull_request:
-    branches: [ main, release ]
+    branches: [main, release]
 
 env:
   REGISTRY: ghcr.io
@@ -15,7 +15,7 @@ jobs:
   lint-and-test:
     name: Lint and Test
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -23,8 +23,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
+          node-version: "18"
+          cache: "npm"
           cache-dependency-path: backend/package-lock.json
 
       - name: Install backend dependencies
@@ -109,7 +109,7 @@ jobs:
     runs-on: self-hosted
     needs: build-and-push
     if: github.ref == 'refs/heads/release'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
