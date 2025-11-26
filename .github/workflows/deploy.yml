@@ -54,6 +54,10 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      backend_image: ${{ steps.image-tags.outputs.backend_image }}
+      frontend_image: ${{ steps.image-tags.outputs.frontend_image }}
+      deploy_target: ${{ steps.deploy-context.outputs.deploy_target }}
 
     steps:
       - name: Checkout code
@@ -66,94 +70,103 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata for backend
-        id: meta-backend
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Determine deployment context
+        id: deploy-context
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "deploy_target=production" >> "$GITHUB_OUTPUT"
+            echo "image_tag=prod-latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_target=staging" >> "$GITHUB_OUTPUT"
+            echo "image_tag=staging-latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set image tags
+        id: image-tags
+        run: |
+          echo "backend_image=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "frontend_image=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push backend image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           push: true
-          tags: ${{ steps.meta-backend.outputs.tags }}
-          labels: ${{ steps.meta-backend.outputs.labels }}
-
-      - name: Extract metadata for frontend
-        id: meta-frontend
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
+            ${{ steps.image-tags.outputs.backend_image }}
+            ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ steps.deploy-context.outputs.image_tag }}
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           push: true
-          tags: ${{ steps.meta-frontend.outputs.tags }}
-          labels: ${{ steps.meta-frontend.outputs.labels }}
+          tags: |
+            ${{ steps.image-tags.outputs.frontend_image }}
+            ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.deploy-context.outputs.image_tag }}
           build-args: |
             VITE_API_URL=${{ secrets.PRODUCTION_API_URL || 'http://localhost:3000/api' }}
 
   deploy:
     name: Deploy to NCSU VCL
-    runs-on: ubuntu-latest
+    runs-on: self-hosted  # This runs ON the NCSU VM, no SSH needed!
     needs: build-and-push
-    if: github.ref == 'refs/heads/release'
+    if: needs.build-and-push.result == 'success'
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup SSH
+      - name: Check Ansible installation
+        id: check-ansible
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.VCL_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.VCL_HOST }} >> ~/.ssh/known_hosts
+          if command -v ansible-playbook &> /dev/null; then
+            echo "installed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Install Ansible
+        if: steps.check-ansible.outputs.installed == 'false'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ansible
+          pip3 install --user ansible
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Create Ansible inventory
-        working-directory: ./ansible
+      - name: Ensure Ansible in PATH
         run: |
-          echo "[vcl]" > inventory.ini
-          echo "${{ secrets.VCL_HOST }} ansible_user=${{ secrets.VCL_USER }} ansible_ssh_private_key_file=~/.ssh/id_rsa" >> inventory.ini
+          export PATH="$HOME/.local/bin:$PATH"
+          ansible-playbook --version
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Pull images
+        run: |
+          docker pull ${{ needs.build-and-push.outputs.backend_image }}
+          docker pull ${{ needs.build-and-push.outputs.frontend_image }}
 
       - name: Deploy with Ansible
         working-directory: ./ansible
         env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_USERNAME: ${{ github.actor }}
-          BACKEND_IMAGE: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:latest
-          FRONTEND_IMAGE: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
+          ANSIBLE_HOST_KEY_CHECKING: False
         run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          
           ansible-playbook playbooks/deploy.yml \
             -i inventory.ini \
-            -e "ghcr_token=${GHCR_TOKEN}" \
-            -e "ghcr_username=${GHCR_USERNAME}" \
-            -e "backend_image=${BACKEND_IMAGE}" \
-            -e "frontend_image=${FRONTEND_IMAGE}"
+            -e "deploy_target=${{ needs.build-and-push.outputs.deploy_target }}" \
+            -e "ghcr_token=${{ secrets.GITHUB_TOKEN }}" \
+            -e "ghcr_username=${{ github.actor }}" \
+            -e "backend_image=${{ needs.build-and-push.outputs.backend_image }}" \
+            -e "frontend_image=${{ needs.build-and-push.outputs.frontend_image }}"
 
       - name: Post deployment notification
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ Deployment successful!"
+            echo "✅ Deployment to ${{ needs.build-and-push.outputs.deploy_target }} successful!"
           else
-            echo "❌ Deployment failed!"
+            echo "❌ Deployment to ${{ needs.build-and-push.outputs.deploy_target }} failed!"
           fi
 
   notify:
