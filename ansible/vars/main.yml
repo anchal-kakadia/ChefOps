@@ -1,34 +1,46 @@
 ---
-# Application configuration (in your home directory - no sudo needed)
+# Application configuration (home directory - no sudo needed)
 app_directory: /home/akakadi/chefops
 docker_network: chefops-network
 
-# Backend / Frontend images (overridden via CLI)
-backend_image: "{{ backend_image | default('ghcr.io/akakadi/chefops-backend:latest') }}"
-frontend_image: "{{ frontend_image | default('ghcr.io/akakadi/chefops-frontend:latest') }}"
+# Development environment
+dev_backend_container: chefops-backend-dev
+dev_backend_port: 3001
+dev_frontend_container: chefops-frontend-dev
+dev_frontend_port: 8001
 
-# Production configuration
-production_backend_container_name: chefops-backend
-production_backend_port: 3000
-production_frontend_container_name: chefops-frontend
-production_frontend_port: 80
+# Staging environment
+staging_backend_container: chefops-backend-staging
+staging_backend_port: 3002
+staging_frontend_container: chefops-frontend-staging
+staging_frontend_port: 8002
 
-# Staging configuration (blue environment - different ports)
-staging_backend_container_name: chefops-backend-staging
-staging_backend_port: 3001
-staging_frontend_container_name: chefops-frontend-staging
-staging_frontend_port: 8081
+# Production environment
+prod_backend_container: chefops-backend
+prod_backend_port: 3000
+prod_frontend_container: chefops-frontend
+prod_frontend_port: 80
 
-# GitHub Container Registry
+# Backend configuration
+backend_image: "{{ backend_image | default('ghcr.io/akakadi/chefops-backend:prod-latest') }}"
+
+# Frontend configuration
+frontend_image: "{{ frontend_image | default('ghcr.io/akakadi/chefops-frontend:prod-latest') }}"
+
+# GitHub Container Registry (passed via GitHub Actions secrets or env)
 ghcr_registry: ghcr.io
 ghcr_username: "{{ ghcr_username }}"
 ghcr_token: "{{ ghcr_token }}"
 
-# Deployment strategy
-deployment_strategy: blue_green
-deploy_target: "{{ deploy_target | default('staging') }}"
-health_check_retries: 5
-health_check_delay: 5
+# Health check configuration
+health_check_retries: 15
+health_check_delay: 2
+health_check_timeout: 5
+
+# Deployment settings
+docker_restart_policy: unless-stopped
+node_env: production
 
 # NO SUDO - all operations run as regular user
 ansible_become: no
+ansible_user: akakadi
