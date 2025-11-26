@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main, release, development ]
   pull_request:
-    branches: [ main, release ]
+    branches: [ main, release, development ]
 
 jobs:
   lint-and-test:
@@ -52,12 +52,14 @@ jobs:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
     needs: lint-and-test
-    if: github.ref == 'refs/heads/release'
-    
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/release' || github.ref == 'refs/heads/main')
     permissions:
       contents: read
       packages: write
-    
+    outputs:
+      backend_image: ${{ steps.image-tags.outputs.backend_image }}
+      frontend_image: ${{ steps.image-tags.outputs.frontend_image }}
+      deploy_target: ${{ steps.deploy-context.outputs.deploy_target }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -72,13 +74,34 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      - name: Determine deployment context
+        id: deploy-context
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            echo "latest_tag=prod-latest" >> "$GITHUB_OUTPUT"
+            echo "deploy_target=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "latest_tag=release-latest" >> "$GITHUB_OUTPUT"
+            echo "deploy_target=staging" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set image tags
+        id: image-tags
+        shell: bash
+        run: |
+          echo "backend_image=ghcr.io/${{ github.repository_owner }}/chefops-backend:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "frontend_image=ghcr.io/${{ github.repository_owner }}/chefops-frontend:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
       - name: Build and push backend
         uses: docker/build-push-action@v4
         with:
           context: ./backend
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/chefops-backend:latest
+          tags: |
+            ${{ steps.image-tags.outputs.backend_image }}
+            ghcr.io/${{ github.repository_owner }}/chefops-backend:${{ steps.deploy-context.outputs.latest_tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -90,7 +113,9 @@ jobs:
           push: true
           build-args: |
             VITE_API_URL=http://csc519-109-host.csc.ncsu.edu:3000/api
-          tags: ghcr.io/${{ github.repository_owner }}/chefops-frontend:latest
+          tags: |
+            ${{ steps.image-tags.outputs.frontend_image }}
+            ghcr.io/${{ github.repository_owner }}/chefops-frontend:${{ steps.deploy-context.outputs.latest_tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -98,8 +123,8 @@ jobs:
     name: Deploy to NCSU VM
     runs-on: self-hosted
     needs: build-and-push
-    if: github.ref == 'refs/heads/release'
-    
+    if: needs.build-and-push.result == 'success'
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -110,44 +135,14 @@ jobs:
       - name: Pull backend image
         run: docker pull ghcr.io/${{ github.repository_owner }}/chefops-backend:latest
 
-      - name: Pull frontend image
-        run: docker pull ghcr.io/${{ github.repository_owner }}/chefops-frontend:latest
-
-      - name: Deploy backend
+      - name: Deploy with Ansible
+        working-directory: ./ansible
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False
         run: |
-          docker stop chefops-backend || true
-          docker rm chefops-backend || true
-          docker run -d --name chefops-backend \
-            --network chefops-network \
-            -p 3000:3000 \
-            -e NODE_ENV=production \
-            -e PORT=3000 \
-            --restart unless-stopped \
-            ghcr.io/${{ github.repository_owner }}/chefops-backend:latest
-
-      - name: Deploy frontend
-        run: |
-          docker stop chefops-frontend || true
-          docker rm chefops-frontend || true
-          docker run -d --name chefops-frontend \
-            --network chefops-network \
-            -p 80:8080 \
-            --restart unless-stopped \
-            ghcr.io/${{ github.repository_owner }}/chefops-frontend:latest
-
-      - name: Wait for backend health check
-        run: |
-          for i in {1..10}; do
-            if curl -f http://localhost:3000/health; then
-              echo "Backend is healthy!"
-              break
-            fi
-            echo "Waiting for backend... attempt $i"
-            sleep 5
-          done
-
-      - name: Clean up old images
-        run: docker image prune -f
-
-      - name: Show running containers
-        run: docker ps
+          ansible-playbook playbooks/deploy.yml -i inventory.ini \
+            -e "deploy_target=${{ needs.build-and-push.outputs.deploy_target }}" \
+            -e "ghcr_username=${{ github.actor }}" \
+            -e "ghcr_token=${{ secrets.GITHUB_TOKEN }}" \
+            -e "backend_image=${{ needs.build-and-push.outputs.backend_image }}" \
+            -e "frontend_image=${{ needs.build-and-push.outputs.frontend_image }}"
