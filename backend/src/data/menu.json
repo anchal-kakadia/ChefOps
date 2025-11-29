@@ -13,7 +13,7 @@
       "id": "2",
       "name": "Pepperoni Pizza",
       "description": "Pizza loaded with pepperoni and cheese",
-      "price": 14.99,
+      "price": 15.99,
       "category": "Pizza",
       "available": true,
       "isSpecial": false
