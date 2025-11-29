@@ -2,9 +2,9 @@ name: ChefOps Gitflow CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, release, development ]
+    branches: [main, release, development]
   pull_request:
-    branches: [ main, release, development ]
+    branches: [main, release]
 
 env:
   REGISTRY: ghcr.io
@@ -16,7 +16,7 @@ jobs:
   lint-and-test:
     name: Lint and Test
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -24,8 +24,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
+          node-version: "18"
+          cache: "npm"
           cache-dependency-path: |
             backend/package-lock.json
             frontend/package-lock.json
