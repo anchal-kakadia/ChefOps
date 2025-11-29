@@ -1,0 +1,153 @@
+---
+- name: Deploy ChefOps to NCSU VM (No Sudo - Rolling Deployment)
+  hosts: vcl
+  become: no
+  vars_files:
+    - ../vars/main.yml
+
+  tasks:
+    - name: Log in to GitHub Container Registry
+      command: >
+        docker login {{ ghcr_registry }}
+        -u {{ ghcr_username }}
+        -p {{ ghcr_token }}
+      no_log: true
+
+    - name: Pull the latest backend image
+      command: docker pull {{ backend_image }}
+
+    - name: Pull the latest frontend image
+      command: docker pull {{ frontend_image }}
+
+    - name: Deploy to staging (blue environment)
+      when: deploy_target in ['staging', 'production']
+      block:
+        - name: Stop existing staging backend container
+          command: docker stop {{ staging_backend_container_name }}
+          ignore_errors: yes
+
+        - name: Remove existing staging backend container
+          command: docker rm {{ staging_backend_container_name }}
+          ignore_errors: yes
+
+        - name: Run new staging backend container
+          command: >
+            docker run -d
+            --name {{ staging_backend_container_name }}
+            --network {{ docker_network }}
+            -p {{ staging_backend_port }}:3000
+            -e NODE_ENV=production
+            -e PORT=3000
+            --restart unless-stopped
+            {{ backend_image }}
+
+        - name: Wait for staging backend health check
+          uri:
+            url: "http://localhost:{{ staging_backend_port }}/health"
+            status_code: 200
+          register: staging_health
+          until: staging_health.status == 200
+          retries: "{{ health_check_retries }}"
+          delay: "{{ health_check_delay }}"
+
+        - name: Stop existing staging frontend container
+          command: docker stop {{ staging_frontend_container_name }}
+          ignore_errors: yes
+
+        - name: Remove existing staging frontend container
+          command: docker rm {{ staging_frontend_container_name }}
+          ignore_errors: yes
+
+        - name: Run new staging frontend container
+          command: >
+            docker run -d
+            --name {{ staging_frontend_container_name }}
+            --network {{ docker_network }}
+            -p {{ staging_frontend_port }}:8080
+            --restart unless-stopped
+            {{ frontend_image }}
+
+        - name: Confirm staging frontend is serving traffic
+          uri:
+            url: "http://localhost:{{ staging_frontend_port }}"
+            status_code: 200
+          register: staging_frontend_status
+          retries: "{{ health_check_retries }}"
+          delay: "{{ health_check_delay }}"
+          until: staging_frontend_status.status == 200
+
+    - name: Promote staging build to production (green environment)
+      when: deploy_target == 'production'
+      block:
+        - name: Stop existing production backend container
+          command: docker stop {{ production_backend_container_name }}
+          ignore_errors: yes
+
+        - name: Remove existing production backend container
+          command: docker rm {{ production_backend_container_name }}
+          ignore_errors: yes
+
+        - name: Run new production backend container
+          command: >
+            docker run -d
+            --name {{ production_backend_container_name }}
+            --network {{ docker_network }}
+            -p {{ production_backend_port }}:3000
+            -e NODE_ENV=production
+            -e PORT=3000
+            --restart unless-stopped
+            {{ backend_image }}
+
+        - name: Wait for production backend health check
+          uri:
+            url: "http://localhost:{{ production_backend_port }}/health"
+            status_code: 200
+          register: production_health
+          until: production_health.status == 200
+          retries: "{{ health_check_retries }}"
+          delay: "{{ health_check_delay }}"
+
+        - name: Stop existing production frontend container
+          command: docker stop {{ production_frontend_container_name }}
+          ignore_errors: yes
+
+        - name: Remove existing production frontend container
+          command: docker rm {{ production_frontend_container_name }}
+          ignore_errors: yes
+
+        - name: Run new production frontend container
+          command: >
+            docker run -d
+            --name {{ production_frontend_container_name }}
+            --network {{ docker_network }}
+            -p {{ production_frontend_port }}:8080
+            --restart unless-stopped
+            {{ frontend_image }}
+
+        - name: Confirm production frontend is serving traffic
+          uri:
+            url: "http://localhost:{{ production_frontend_port }}"
+            status_code: 200
+          register: production_frontend_status
+          retries: "{{ health_check_retries }}"
+          delay: "{{ health_check_delay }}"
+          until: production_frontend_status.status == 200
+
+    # CLEANUP
+    - name: Clean up dangling images
+      command: docker image prune -f
+
+    - name: Display deployment success message
+      debug:
+        msg: |
+          ✅ Deployment successful!
+          
+          🌐 Access your application:
+          - Staging Frontend: http://{{ ansible_host }}:{{ staging_frontend_port }}
+          - Staging Backend API: http://{{ ansible_host }}:{{ staging_backend_port }}
+          - Production Frontend: http://{{ ansible_host }}{% if deploy_target == 'production' %}:{{ production_frontend_port }}{% endif %}
+          - Production Backend API: http://{{ ansible_host }}{% if deploy_target == 'production' %}:{{ production_backend_port }}{% endif %}
+          
+          📝 From off-campus, remember to:
+          - Connect to NC State VPN first, OR
+          - SSH through remote-linux.eos.ncsu.edu

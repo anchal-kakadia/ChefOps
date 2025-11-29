@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Production
+dist/
+build/
+*.log
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+*.test.js.snap
+
+# Ansible
+*.retry
+ansible/inventory.ini
+.ansible/
+
+# Docker
+docker-compose.override.yml
+
+# SSH Keys
+*.pem
+*.key
+id_rsa
+id_rsa.pub

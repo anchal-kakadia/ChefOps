@@ -2,20 +2,22 @@
 
 ## **Cloud Kitchen Platform - DevOps Pipeline Proposal**
 
-### **Solo Project by:** *Anchal Kakadia (akakadi)*
+### **Solo Project by:** _Anchal Kakadia (akakadi)_
 
 ---
 
 ## **Problem Statement & Description**
 
 ### **The Problem**
+
 Cloud kitchen platforms must frequently update live menus because dishes may go out of stock (maybe due to ingredient shortages), and today’s specials or seasonal offerings change quite often.  
-In many existing systems, these updates require **manual deployment**, configuration edits on production servers, or even full restarts.  
+In many existing systems, these updates require **manual deployment**, configuration edits on production servers, or even full restarts.
 
 Such manual processes lead to:
-- Inconsistent environments  
-- Downtime during meal rush hours  
-- Increased risk of untested updates reaching production  
+
+- Inconsistent environments
+- Downtime during meal rush hours
+- Increased risk of untested updates reaching production
 
 ---
 
@@ -44,16 +46,15 @@ Such manual processes lead to:
 - Runs containers and validates service availability.
 - Supports rollback using previous stable Docker tags.
 - Local development verified:
-    - Backend runs on configurable port.
-    - Frontend fetches from local backend or environment-specified URL.
-    - Optional Docker build and Ansible deployment tested for local VM or cloud host.
+  - Backend runs on configurable port.
+  - Frontend fetches from local backend or environment-specified URL.
+  - Optional Docker build and Ansible deployment tested for local VM or cloud host.
 
 **Representative GitHub commits:**
 
-- Initialized Backend  - 87d57f4cb0aebdc98becec03933763993789c556 (https://github.com/anchal-kakadia/ChefOps/commit/87d57f4cb0aebdc98becec03933763993789c556)
-- Frontend minimal SPA integration - c65eedfc845df56d4955218622e60b110523a710 (https://github.com/anchal-kakadia/ChefOps/commit/c65eedfc845df56d4955218622e60b110523a710)
-- CI/CD workflow & Ansible deployment - e5fdab3d189aa9e2129ca91c978f05781d1c53b9 (https://github.com/anchal-kakadia/ChefOps/commit/e5fdab3d189aa9e2129ca91c978f05781d1c53b9)
-& 655877d6dccade04743e2369a15e2a5500ae0913(https://github.com/anchal-kakadia/ChefOps/commit/655877d6dccade04743e2369a15e2a5500ae0913)
+- Initialized Backend - 87d57f4cb0aebdc98becec03933763993789c556
+- Frontend minimal SPA integration - c65eedfc845df56d4955218622e60b110523a710
+- CI/CD workflow & Ansible deployment - e5fdab3d189aa9e2129ca91c978f05781d1c53b9 & 655877d6dccade04743e2369a15e2a5500ae0913
 
 ### **3. Next Steps**
 
@@ -76,12 +77,11 @@ Such manual processes lead to:
 **5. Deployment and Rollback Enhancements**
 
 - Expand Ansible playbook to:
-    - Support rolling updates without downtime.
-    - Redeploy previous stable Docker image automatically if health check fails.
-    - Validate backend API availability using /menu after deployment.
-    - Add host environment tagging in inventory for staging vs production deployment.
-    - Time estimate: 2-3 days.
-
+  - Support rolling updates without downtime.
+  - Redeploy previous stable Docker image automatically if health check fails.
+  - Validate backend API availability using /menu after deployment.
+  - Add host environment tagging in inventory for staging vs production deployment.
+  - Time estimate: 2-3 days.
 
 **Overall Estimated Completion:** ~2 weeks for all planned enhancements, including backend APIs, frontend admin features, CI/CD pipeline improvements, and deployment automation.
 
@@ -95,7 +95,7 @@ Such manual processes lead to:
 
 **What didn’t work well:**
 
-- Rollup optional dependency bug on Apple Silicon required node\_modules and lockfile cleanup.
+- Rollup optional dependency bug on Apple Silicon required node_modules and lockfile cleanup.
 - Some workflow steps needed manual validation initially, particularly for rollback and health checks, highlighting the need for more robust automated testing.
 
 **Lessons learned / improvements:**

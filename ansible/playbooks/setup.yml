@@ -1,0 +1,57 @@
+---
+- name: Setup ChefOps on NCSU VM (No Sudo)
+  hosts: vcl
+  become: no  # NO SUDO ACCESS
+  vars_files:
+    - ../vars/main.yml
+
+  tasks:
+    - name: Test Docker access
+      command: docker --version
+      register: docker_version
+      changed_when: false
+
+    - name: Display Docker version
+      debug:
+        msg: "Docker is available: {{ docker_version.stdout }}"
+
+    - name: Create application directory in home
+      file:
+        path: "{{ app_directory }}"
+        state: directory
+        mode: '0755'
+
+    - name: Create data persistence directory
+      file:
+        path: "{{ app_directory }}/data"
+        state: directory
+        mode: '0755'
+
+    - name: Check if Docker network exists
+      command: docker network inspect {{ docker_network }}
+      register: network_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Create Docker network
+      command: docker network create {{ docker_network }}
+      when: network_check.rc != 0
+
+    - name: Test Docker run (hello-world)
+      command: docker run --rm hello-world
+      register: docker_test
+      changed_when: false
+
+    - name: Display Docker test result
+      debug:
+        msg: "{{ docker_test.stdout }}"
+
+    - name: Display setup completion message
+      debug:
+        msg: |
+          ✅ Setup complete!
+          - Docker is accessible: {{ docker_version.stdout }}
+          - Application directory created at {{ app_directory }}
+          - Docker network '{{ docker_network }}' is ready
+          - Ports available: 80, 443, 3000
+          - Ready for deployment!
