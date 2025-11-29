@@ -8,11 +8,13 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Convert repository name to lowercase for Docker compatibility
   BACKEND_IMAGE_NAME: ${{ github.repository_owner }}/chefops/chefops-backend
   FRONTEND_IMAGE_NAME: ${{ github.repository_owner }}/chefops/chefops-frontend
 
 jobs:
+  # ===========================================
+  # JOB 1: Lint and Test (runs on ALL events)
+  # ===========================================
   lint-and-test:
     name: Lint and Test
     runs-on: ubuntu-latest
@@ -61,6 +63,48 @@ jobs:
         working-directory: ./frontend
         run: npm run build
 
+  # ===========================================
+  # JOB 2: Build Images for PRs (NO PUSH)
+  # ===========================================
+  build-pr-images:
+    name: Build Images (PR Validation)
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: false
+          tags: chefops-backend:pr-${{ github.event.pull_request.number }}
+
+      - name: Build frontend image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: false
+          tags: chefops-frontend:pr-${{ github.event.pull_request.number }}
+          build-args: |
+            VITE_API_URL=http://localhost:3000/api
+
+      - name: PR validation success
+        run: |
+          echo "✅ PR #${{ github.event.pull_request.number }} is merge-safe!"
+          echo "✅ All tests passed"
+          echo "✅ Images build successfully"
+          echo "✅ Ready to merge"
+
+  # ===========================================
+  # JOB 3: Build and Push Images (PUSH only)
+  # ===========================================
   build-and-push:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
@@ -72,7 +116,7 @@ jobs:
     outputs:
       backend-image: ${{ steps.image-tags.outputs.backend-image }}
       frontend-image: ${{ steps.image-tags.outputs.frontend-image }}
-      image-digest: ${{ steps.image-tags.outputs.digest }}
+      environment: ${{ steps.image-tags.outputs.environment }}
     
     steps:
       - name: Checkout code
@@ -96,7 +140,6 @@ jobs:
       - name: Generate image tags and metadata
         id: image-tags
         run: |
-          # Convert owner to lowercase
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           
           # Determine environment and tag based on branch
@@ -123,9 +166,11 @@ jobs:
           echo "frontend-image=${FRONTEND_IMAGE}" >> $GITHUB_OUTPUT
           echo "backend-latest=${BACKEND_LATEST}" >> $GITHUB_OUTPUT
           echo "frontend-latest=${FRONTEND_LATEST}" >> $GITHUB_OUTPUT
-          echo "latest-tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
           echo "environment=${ENVIRONMENT}" >> $GITHUB_OUTPUT
-          echo "digest=${{ github.sha }}" >> $GITHUB_OUTPUT
+          
+          echo "📦 Building images for ${ENVIRONMENT}:"
+          echo "  Backend: ${BACKEND_IMAGE}"
+          echo "  Frontend: ${FRONTEND_IMAGE}"
 
       - name: Build and push backend image
         uses: docker/build-push-action@v5
@@ -157,6 +202,9 @@ jobs:
             org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
             environment=${{ steps.image-tags.outputs.environment }}
 
+  # ===========================================
+  # JOB 4: Deploy to Development
+  # ===========================================
   deploy-to-development:
     name: Deploy to Development
     runs-on: self-hosted
@@ -175,20 +223,25 @@ jobs:
           BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend-image }}
           FRONTEND_IMAGE: ${{ needs.build-and-push.outputs.frontend-image }}
         run: |
+          echo "🚀 Deploying to DEVELOPMENT environment..."
+          
           # Login to registry
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
           # Pull images
+          echo "📥 Pulling images..."
           docker pull ${{ env.BACKEND_IMAGE }}
           docker pull ${{ env.FRONTEND_IMAGE }}
           
           # Stop existing containers
+          echo "🛑 Stopping existing containers..."
           docker stop chefops-backend-dev || true
           docker rm chefops-backend-dev || true
           docker stop chefops-frontend-dev || true
           docker rm chefops-frontend-dev || true
           
           # Deploy backend
+          echo "🔧 Deploying backend..."
           docker run -d --name chefops-backend-dev \
             --network chefops-network \
             -p 3001:3000 \
@@ -198,6 +251,7 @@ jobs:
             ${{ env.BACKEND_IMAGE }}
           
           # Deploy frontend
+          echo "🎨 Deploying frontend..."
           docker run -d --name chefops-frontend-dev \
             --network chefops-network \
             -p 8001:8080 \
@@ -205,20 +259,27 @@ jobs:
             ${{ env.FRONTEND_IMAGE }}
           
           # Health checks
-          echo "Waiting for development backend..."
+          echo "🏥 Running health checks..."
           for i in {1..15}; do
             if curl -f http://localhost:3001/health 2>/dev/null; then
               echo "✅ Development backend is healthy!"
               break
             fi
-            echo "Attempt $i/15..."
+            echo "⏳ Attempt $i/15..."
             sleep 2
           done
           
           # Cleanup
+          echo "🧹 Cleaning up old images..."
           docker image prune -f
-          docker ps
+          
+          echo "✅ Development deployment complete!"
+          echo "🌐 Access at: http://csc519-109-host.csc.ncsu.edu/dev"
+          docker ps --filter name=chefops
 
+  # ===========================================
+  # JOB 5: Deploy to Staging
+  # ===========================================
   deploy-to-staging:
     name: Deploy to Staging
     runs-on: self-hosted
@@ -237,20 +298,25 @@ jobs:
           BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend-image }}
           FRONTEND_IMAGE: ${{ needs.build-and-push.outputs.frontend-image }}
         run: |
+          echo "🚀 Deploying to STAGING environment..."
+          
           # Login to registry
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
           # Pull images
+          echo "📥 Pulling images..."
           docker pull ${{ env.BACKEND_IMAGE }}
           docker pull ${{ env.FRONTEND_IMAGE }}
           
           # Stop existing containers
+          echo "🛑 Stopping existing containers..."
           docker stop chefops-backend-staging || true
           docker rm chefops-backend-staging || true
           docker stop chefops-frontend-staging || true
           docker rm chefops-frontend-staging || true
           
           # Deploy backend
+          echo "🔧 Deploying backend..."
           docker run -d --name chefops-backend-staging \
             --network chefops-network \
             -p 3002:3000 \
@@ -260,6 +326,7 @@ jobs:
             ${{ env.BACKEND_IMAGE }}
           
           # Deploy frontend
+          echo "🎨 Deploying frontend..."
           docker run -d --name chefops-frontend-staging \
             --network chefops-network \
             -p 8002:8080 \
@@ -267,20 +334,27 @@ jobs:
             ${{ env.FRONTEND_IMAGE }}
           
           # Health checks
-          echo "Waiting for staging backend..."
+          echo "🏥 Running health checks..."
           for i in {1..15}; do
             if curl -f http://localhost:3002/health 2>/dev/null; then
               echo "✅ Staging backend is healthy!"
               break
             fi
-            echo "Attempt $i/15..."
+            echo "⏳ Attempt $i/15..."
             sleep 2
           done
           
           # Cleanup
+          echo "🧹 Cleaning up old images..."
           docker image prune -f
-          docker ps
+          
+          echo "✅ Staging deployment complete!"
+          echo "🌐 Access at: http://csc519-109-host.csc.ncsu.edu/staging"
+          docker ps --filter name=chefops
 
+  # ===========================================
+  # JOB 6: Deploy to Production
+  # ===========================================
   deploy-to-production:
     name: Deploy to Production
     runs-on: self-hosted
@@ -299,20 +373,25 @@ jobs:
           BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend-image }}
           FRONTEND_IMAGE: ${{ needs.build-and-push.outputs.frontend-image }}
         run: |
+          echo "🚀 Deploying to PRODUCTION environment..."
+          
           # Login to registry
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
           # Pull images
+          echo "📥 Pulling images..."
           docker pull ${{ env.BACKEND_IMAGE }}
           docker pull ${{ env.FRONTEND_IMAGE }}
           
           # Stop existing containers
+          echo "🛑 Stopping existing containers..."
           docker stop chefops-backend || true
           docker rm chefops-backend || true
           docker stop chefops-frontend || true
           docker rm chefops-frontend || true
           
           # Deploy backend
+          echo "🔧 Deploying backend..."
           docker run -d --name chefops-backend \
             --network chefops-network \
             -p 3000:3000 \
@@ -322,6 +401,7 @@ jobs:
             ${{ env.BACKEND_IMAGE }}
           
           # Deploy frontend
+          echo "🎨 Deploying frontend..."
           docker run -d --name chefops-frontend \
             --network chefops-network \
             -p 80:8080 \
@@ -329,16 +409,20 @@ jobs:
             ${{ env.FRONTEND_IMAGE }}
           
           # Health checks
-          echo "Waiting for production backend..."
+          echo "🏥 Running health checks..."
           for i in {1..15}; do
             if curl -f http://localhost:3000/health 2>/dev/null; then
               echo "✅ Production backend is healthy!"
               break
             fi
-            echo "Attempt $i/15..."
+            echo "⏳ Attempt $i/15..."
             sleep 2
           done
           
           # Cleanup
+          echo "🧹 Cleaning up old images..."
           docker image prune -f
-          docker ps
+          
+          echo "✅ Production deployment complete!"
+          echo "🌐 Access at: http://csc519-109-host.csc.ncsu.edu"
+          docker ps --filter name=chefops
