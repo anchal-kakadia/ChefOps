@@ -8,8 +8,9 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE_NAME: ${{ github.repository }}/chefops-backend
-  FRONTEND_IMAGE_NAME: ${{ github.repository }}/chefops-frontend
+  # Convert repository name to lowercase for Docker compatibility
+  BACKEND_IMAGE_NAME: ${{ github.repository_owner }}/chefops/chefops-backend
+  FRONTEND_IMAGE_NAME: ${{ github.repository_owner }}/chefops/chefops-frontend
 
 jobs:
   lint-and-test:
@@ -77,6 +78,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Convert repository owner to lowercase
+        id: lowercase
+        run: |
+          echo "owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -90,6 +96,9 @@ jobs:
       - name: Generate image tags and metadata
         id: image-tags
         run: |
+          # Convert owner to lowercase
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          
           # Determine environment and tag based on branch
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             ENVIRONMENT="production"
@@ -105,11 +114,15 @@ jobs:
             LATEST_TAG="dev-latest"
           fi
           
-          BACKEND_IMAGE="${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:${TAG_SUFFIX}"
-          FRONTEND_IMAGE="${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${TAG_SUFFIX}"
+          BACKEND_IMAGE="${{ env.REGISTRY }}/${OWNER_LOWER}/chefops/chefops-backend:${TAG_SUFFIX}"
+          FRONTEND_IMAGE="${{ env.REGISTRY }}/${OWNER_LOWER}/chefops/chefops-frontend:${TAG_SUFFIX}"
+          BACKEND_LATEST="${{ env.REGISTRY }}/${OWNER_LOWER}/chefops/chefops-backend:${LATEST_TAG}"
+          FRONTEND_LATEST="${{ env.REGISTRY }}/${OWNER_LOWER}/chefops/chefops-frontend:${LATEST_TAG}"
           
           echo "backend-image=${BACKEND_IMAGE}" >> $GITHUB_OUTPUT
           echo "frontend-image=${FRONTEND_IMAGE}" >> $GITHUB_OUTPUT
+          echo "backend-latest=${BACKEND_LATEST}" >> $GITHUB_OUTPUT
+          echo "frontend-latest=${FRONTEND_LATEST}" >> $GITHUB_OUTPUT
           echo "latest-tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
           echo "environment=${ENVIRONMENT}" >> $GITHUB_OUTPUT
           echo "digest=${{ github.sha }}" >> $GITHUB_OUTPUT
@@ -121,7 +134,7 @@ jobs:
           push: true
           tags: |
             ${{ steps.image-tags.outputs.backend-image }}
-            ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ steps.image-tags.outputs.latest-tag }}
+            ${{ steps.image-tags.outputs.backend-latest }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -135,7 +148,7 @@ jobs:
           push: true
           tags: |
             ${{ steps.image-tags.outputs.frontend-image }}
-            ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.image-tags.outputs.latest-tag }}
+            ${{ steps.image-tags.outputs.frontend-latest }}
           build-args: |
             VITE_API_URL=${{ secrets.PRODUCTION_API_URL || 'http://localhost:3000/api' }}
           labels: |
