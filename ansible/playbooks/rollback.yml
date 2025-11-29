@@ -1,88 +1,200 @@
 ---
-- name: Rollback ChefOps Deployment
+- name: Rollback ChefOps Deployment (No Sudo)
   hosts: vcl
-  become: yes
+  become: no
+  gather_facts: yes
   vars_files:
     - ../vars/main.yml
 
+  pre_tasks:
+    - name: Validate rollback environment
+      assert:
+        that:
+          - rollback_target is defined
+          - rollback_target in ['development', 'staging', 'production']
+        fail_msg: "rollback_target must be defined and one of: development, staging, production"
+
+    - name: Set container names for rollback environment
+      set_fact:
+        backend_container_name: "{{ vars[rollback_target + '_backend_container'] }}"
+        backend_port: "{{ vars[rollback_target + '_backend_port'] }}"
+        frontend_container_name: "{{ vars[rollback_target + '_frontend_container'] }}"
+        frontend_port: "{{ vars[rollback_target + '_frontend_port'] }}"
+
   tasks:
-    - name: Get list of backend images
-      docker_host_info:
-        images: yes
-        images_filters:
-          reference: "{{ backend_image | regex_replace(':.*', '') }}"
-      register: backend_images
+    - name: Get current running backend image
+      shell: >
+        docker inspect {{ backend_container_name }} 2>/dev/null |
+        jq -r '.[0].Config.Image' || echo "unknown"
+      register: current_backend_image
+      changed_when: false
 
-    - name: Get list of frontend images
-      docker_host_info:
-        images: yes
-        images_filters:
-          reference: "{{ frontend_image | regex_replace(':.*', '') }}"
-      register: frontend_images
+    - name: Get current running frontend image
+      shell: >
+        docker inspect {{ frontend_container_name }} 2>/dev/null |
+        jq -r '.[0].Config.Image' || echo "unknown"
+      register: current_frontend_image
+      changed_when: false
 
-    - name: Find previous stable backend image
-      set_fact:
-        rollback_backend_image: "{{ backend_images.images | sort(attribute='Created', reverse=True) | map(attribute='RepoTags') | list | flatten | select('search', backend_image | regex_replace(':.*', '')) | list | select('!=', backend_image) | first | default(backend_image) }}"
+    - name: Get available backend images
+      command: >
+        docker images --format "{{ '{{' }}.Repository}}:{{ '{{' }}.Tag}}" ghcr.io/akakadi/chefops-backend
+      register: available_backend_images
+      changed_when: false
 
-    - name: Find previous stable frontend image
-      set_fact:
-        rollback_frontend_image: "{{ frontend_images.images | sort(attribute='Created', reverse=True) | map(attribute='RepoTags') | list | flatten | select('search', frontend_image | regex_replace(':.*', '')) | list | select('!=', frontend_image) | first | default(frontend_image) }}"
+    - name: Get available frontend images
+      command: >
+        docker images --format "{{ '{{' }}.Repository}}:{{ '{{' }}.Tag}}" ghcr.io/akakadi/chefops-frontend
+      register: available_frontend_images
+      changed_when: false
 
-    - name: Display rollback information
+    - name: Display current and available images
       debug:
         msg: |
-          🔄 Rolling back to previous versions:
+          🔄 Rollback Information for {{ rollback_target | upper }}
+          
+          📌 Current Running Images:
+          - Backend: {{ current_backend_image.stdout }}
+          - Frontend: {{ current_frontend_image.stdout }}
+          
+          📦 Available Images:
+          Backend:
+          {{ available_backend_images.stdout_lines | to_nice_yaml }}
+          
+          Frontend:
+          {{ available_frontend_images.stdout_lines | to_nice_yaml }}
+          
+          🎯 To rollback, provide:
+          - rollback_backend_image: (image tag from above)
+          - rollback_frontend_image: (image tag from above)
+          
+          Example:
+          ansible-playbook rollback.yml -e "rollback_target=production rollback_backend_image=ghcr.io/akakadi/chefops-backend:prod-abc123 rollback_frontend_image=ghcr.io/akakadi/chefops-frontend:prod-abc123"
+
+    - name: Validate rollback images provided
+      assert:
+        that:
+          - rollback_backend_image is defined
+          - rollback_frontend_image is defined
+        fail_msg: "Both rollback_backend_image and rollback_frontend_image must be specified"
+
+    - name: Confirm rollback with user
+      pause:
+        prompt: |
+          ⚠️  ROLLBACK CONFIRMATION REQUIRED
+          
+          Target Environment: {{ rollback_target | upper }}
+          Containers to rollback:
+          - {{ backend_container_name }}
+          - {{ frontend_container_name }}
+          
+          Rolling back to:
           - Backend: {{ rollback_backend_image }}
           - Frontend: {{ rollback_frontend_image }}
+          
+          Current images:
+          - Backend: {{ current_backend_image.stdout }}
+          - Frontend: {{ current_frontend_image.stdout }}
+          
+          Type 'yes' to confirm rollback:
+      register: rollback_confirmation
+      when: rollback_force is not defined or not rollback_force
 
-    - name: Stop current production backend
-      docker_container:
-        name: "{{ backend_container_name }}"
-        state: stopped
+    - name: Validate confirmation
+      assert:
+        that:
+          - rollback_confirmation.user_input | lower == 'yes' or (rollback_force is defined and rollback_force)
+        fail_msg: "Rollback cancelled - confirmation not provided"
+      when: rollback_force is not defined or not rollback_force
 
-    - name: Deploy previous backend version
-      docker_container:
-        name: "{{ backend_container_name }}"
-        image: "{{ rollback_backend_image }}"
-        state: started
-        restart_policy: unless-stopped
-        ports:
-          - "{{ backend_port }}:3000"
-        env:
-          NODE_ENV: production
-          PORT: "3000"
-        networks:
-          - name: "{{ docker_network }}"
+    - name: Stop backend container
+      command: docker stop {{ backend_container_name }}
+      ignore_errors: yes
+
+    - name: Remove backend container
+      command: docker rm {{ backend_container_name }}
+      ignore_errors: yes
+
+    - name: Pull rollback backend image
+      command: docker pull {{ rollback_backend_image }}
+
+    - name: Deploy rollback backend container
+      command: >
+        docker run -d
+        --name {{ backend_container_name }}
+        --network {{ docker_network }}
+        -p {{ backend_port }}:3000
+        -e NODE_ENV={{ rollback_target }}
+        -e PORT=3000
+        --restart {{ docker_restart_policy }}
+        --log-opt max-size=10m
+        --log-opt max-file=3
+        {{ rollback_backend_image }}
 
     - name: Wait for rollback backend health check
       uri:
         url: "http://localhost:{{ backend_port }}/health"
         status_code: 200
-      register: rollback_health
-      until: rollback_health.status == 200
+        timeout: "{{ health_check_timeout }}"
+      register: backend_health
+      until: backend_health.status == 200
       retries: "{{ health_check_retries }}"
       delay: "{{ health_check_delay }}"
 
-    - name: Stop current production frontend
-      docker_container:
-        name: "{{ frontend_container_name }}"
-        state: stopped
+    - name: Stop frontend container
+      command: docker stop {{ frontend_container_name }}
+      ignore_errors: yes
 
-    - name: Deploy previous frontend version
-      docker_container:
-        name: "{{ frontend_container_name }}"
-        image: "{{ rollback_frontend_image }}"
-        state: started
-        restart_policy: unless-stopped
-        ports:
-          - "{{ frontend_port }}:8080"
-        networks:
-          - name: "{{ docker_network }}"
+    - name: Remove frontend container
+      command: docker rm {{ frontend_container_name }}
+      ignore_errors: yes
 
-    - name: Display rollback success message
+    - name: Pull rollback frontend image
+      command: docker pull {{ rollback_frontend_image }}
+
+    - name: Deploy rollback frontend container
+      command: >
+        docker run -d
+        --name {{ frontend_container_name }}
+        --network {{ docker_network }}
+        -p {{ frontend_port }}:8080
+        --restart {{ docker_restart_policy }}
+        --log-opt max-size=10m
+        --log-opt max-file=3
+        {{ rollback_frontend_image }}
+
+    - name: Wait for rollback frontend
+      uri:
+        url: "http://localhost:{{ frontend_port }}/"
+        status_code: 200
+        timeout: "{{ health_check_timeout }}"
+      register: frontend_health
+      until: frontend_health.status == 200
+      retries: "{{ health_check_retries }}"
+      delay: "{{ health_check_delay }}"
+
+    - name: Clean up dangling images
+      command: docker image prune -f
+      changed_when: false
+
+    - name: Display rollback success
       debug:
         msg: |
-          ✅ Rollback successful!
-          - Application restored to previous stable version
-          - Backend: {{ rollback_backend_image }}
-          - Frontend: {{ rollback_frontend_image }}
+          ✅ Rollback to {{ rollback_target | upper }} Successful!
+          
+          🔄 Rolled Back Containers:
+          - Backend: {{ backend_container_name }}
+            Image: {{ rollback_backend_image }}
+            Health: {{ backend_health.status }}
+          
+          - Frontend: {{ frontend_container_name }}
+            Image: {{ rollback_frontend_image }}
+            Status: OK
+          
+          🌐 Access URLs:
+          - Frontend: http://localhost:{{ frontend_port }}
+          - Backend API: http://localhost:{{ backend_port }}/api
+          
+          📝 Previous Images:
+          - Backend: {{ current_backend_image.stdout }}
+          - Frontend: {{ current_frontend_image.stdout }}

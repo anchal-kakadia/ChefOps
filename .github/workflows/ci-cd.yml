@@ -1,10 +1,16 @@
-name: ChefOps CI/CD Pipeline
+name: ChefOps Gitflow CI/CD Pipeline
 
 on:
   push:
     branches: [main, release, development]
   pull_request:
     branches: [main, release]
+
+env:
+  REGISTRY: ghcr.io
+  # Convert repository name to lowercase for Docker compatibility
+  BACKEND_IMAGE_NAME: ${{ github.repository_owner }}/chefops/chefops-backend
+  FRONTEND_IMAGE_NAME: ${{ github.repository_owner }}/chefops/chefops-frontend
 
 jobs:
   lint-and-test:
@@ -13,10 +19,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: "18"
           cache: "npm"
@@ -28,19 +34,26 @@ jobs:
         working-directory: ./backend
         run: npm ci
 
-      - name: Lint backend
+      - name: Run ESLint (backend)
         working-directory: ./backend
         run: npm run lint
 
-      - name: Test backend
+      - name: Run Jest tests (backend)
         working-directory: ./backend
-        run: npm test
+        run: npm test -- --coverage
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./backend/coverage
+          flags: backend
+          fail_ci_if_error: false
 
       - name: Install frontend dependencies
         working-directory: ./frontend
         run: npm ci
 
-      - name: Lint frontend
+      - name: Run ESLint (frontend)
         working-directory: ./frontend
         run: npm run lint
 
@@ -52,102 +65,280 @@ jobs:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
     needs: lint-and-test
-    if: github.ref == 'refs/heads/release'
-
+    if: github.event_name == 'push'
     permissions:
       contents: read
       packages: write
-
+    outputs:
+      backend-image: ${{ steps.image-tags.outputs.backend-image }}
+      frontend-image: ${{ steps.image-tags.outputs.frontend-image }}
+      image-digest: ${{ steps.image-tags.outputs.digest }}
+    
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      - name: Convert repository owner to lowercase
+        id: lowercase
+        run: |
+          echo "owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build and push backend
-        uses: docker/build-push-action@v4
+      - name: Generate image tags and metadata
+        id: image-tags
+        run: |
+          # Convert owner to lowercase
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          
+          # Determine environment and tag based on branch
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            ENVIRONMENT="production"
+            TAG_SUFFIX="prod-${{ github.sha }}"
+            LATEST_TAG="prod-latest"
+          elif [[ "${{ github.ref }}" == "refs/heads/release" ]]; then
+            ENVIRONMENT="staging"
+            TAG_SUFFIX="staging-${{ github.sha }}"
+            LATEST_TAG="staging-latest"
+          elif [[ "${{ github.ref }}" == "refs/heads/development" ]]; then
+            ENVIRONMENT="development"
+            TAG_SUFFIX="dev-${{ github.sha }}"
+            LATEST_TAG="dev-latest"
+          fi
+          
+          BACKEND_IMAGE="${{ env.REGISTRY }}/${OWNER_LOWER}/chefops/chefops-backend:${TAG_SUFFIX}"
+          FRONTEND_IMAGE="${{ env.REGISTRY }}/${OWNER_LOWER}/chefops/chefops-frontend:${TAG_SUFFIX}"
+          BACKEND_LATEST="${{ env.REGISTRY }}/${OWNER_LOWER}/chefops/chefops-backend:${LATEST_TAG}"
+          FRONTEND_LATEST="${{ env.REGISTRY }}/${OWNER_LOWER}/chefops/chefops-frontend:${LATEST_TAG}"
+          
+          echo "backend-image=${BACKEND_IMAGE}" >> $GITHUB_OUTPUT
+          echo "frontend-image=${FRONTEND_IMAGE}" >> $GITHUB_OUTPUT
+          echo "backend-latest=${BACKEND_LATEST}" >> $GITHUB_OUTPUT
+          echo "frontend-latest=${FRONTEND_LATEST}" >> $GITHUB_OUTPUT
+          echo "latest-tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
+          echo "environment=${ENVIRONMENT}" >> $GITHUB_OUTPUT
+          echo "digest=${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
         with:
           context: ./backend
-          platforms: linux/amd64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/chefops-backend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: |
+            ${{ steps.image-tags.outputs.backend-image }}
+            ${{ steps.image-tags.outputs.backend-latest }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            environment=${{ steps.image-tags.outputs.environment }}
 
-      - name: Build and push frontend
-        uses: docker/build-push-action@v4
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
         with:
           context: ./frontend
-          platforms: linux/amd64
           push: true
+          tags: |
+            ${{ steps.image-tags.outputs.frontend-image }}
+            ${{ steps.image-tags.outputs.frontend-latest }}
           build-args: |
-            VITE_API_URL=http://csc519-109-host.csc.ncsu.edu:3000/api
-          tags: ghcr.io/${{ github.repository_owner }}/chefops-frontend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            VITE_API_URL=${{ secrets.PRODUCTION_API_URL || 'http://localhost:3000/api' }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            environment=${{ steps.image-tags.outputs.environment }}
 
-  deploy:
-    name: Deploy to NCSU VM
+  deploy-to-development:
+    name: Deploy to Development
     runs-on: self-hosted
     needs: build-and-push
-    if: github.ref == 'refs/heads/release'
+    if: github.ref == 'refs/heads/development' && github.event_name == 'push'
+    environment:
+      name: development
+      url: http://csc519-109-host.csc.ncsu.edu/dev
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-      - name: Pull backend image
-        run: docker pull ghcr.io/${{ github.repository_owner }}/chefops-backend:latest
-
-      - name: Pull frontend image
-        run: docker pull ghcr.io/${{ github.repository_owner }}/chefops-frontend:latest
-
-      - name: Deploy backend
+      - name: Deploy to development
+        env:
+          BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend-image }}
+          FRONTEND_IMAGE: ${{ needs.build-and-push.outputs.frontend-image }}
         run: |
+          # Login to registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          # Pull images
+          docker pull ${{ env.BACKEND_IMAGE }}
+          docker pull ${{ env.FRONTEND_IMAGE }}
+          
+          # Stop existing containers
+          docker stop chefops-backend-dev || true
+          docker rm chefops-backend-dev || true
+          docker stop chefops-frontend-dev || true
+          docker rm chefops-frontend-dev || true
+          
+          # Deploy backend
+          docker run -d --name chefops-backend-dev \
+            --network chefops-network \
+            -p 3001:3000 \
+            -e NODE_ENV=development \
+            -e PORT=3000 \
+            --restart unless-stopped \
+            ${{ env.BACKEND_IMAGE }}
+          
+          # Deploy frontend
+          docker run -d --name chefops-frontend-dev \
+            --network chefops-network \
+            -p 8001:8080 \
+            --restart unless-stopped \
+            ${{ env.FRONTEND_IMAGE }}
+          
+          # Health checks
+          echo "Waiting for development backend..."
+          for i in {1..15}; do
+            if curl -f http://localhost:3001/health 2>/dev/null; then
+              echo "✅ Development backend is healthy!"
+              break
+            fi
+            echo "Attempt $i/15..."
+            sleep 2
+          done
+          
+          # Cleanup
+          docker image prune -f
+          docker ps
+
+  deploy-to-staging:
+    name: Deploy to Staging
+    runs-on: self-hosted
+    needs: build-and-push
+    if: github.ref == 'refs/heads/release' && github.event_name == 'push'
+    environment:
+      name: staging
+      url: http://csc519-109-host.csc.ncsu.edu/staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        env:
+          BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend-image }}
+          FRONTEND_IMAGE: ${{ needs.build-and-push.outputs.frontend-image }}
+        run: |
+          # Login to registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          # Pull images
+          docker pull ${{ env.BACKEND_IMAGE }}
+          docker pull ${{ env.FRONTEND_IMAGE }}
+          
+          # Stop existing containers
+          docker stop chefops-backend-staging || true
+          docker rm chefops-backend-staging || true
+          docker stop chefops-frontend-staging || true
+          docker rm chefops-frontend-staging || true
+          
+          # Deploy backend
+          docker run -d --name chefops-backend-staging \
+            --network chefops-network \
+            -p 3002:3000 \
+            -e NODE_ENV=staging \
+            -e PORT=3000 \
+            --restart unless-stopped \
+            ${{ env.BACKEND_IMAGE }}
+          
+          # Deploy frontend
+          docker run -d --name chefops-frontend-staging \
+            --network chefops-network \
+            -p 8002:8080 \
+            --restart unless-stopped \
+            ${{ env.FRONTEND_IMAGE }}
+          
+          # Health checks
+          echo "Waiting for staging backend..."
+          for i in {1..15}; do
+            if curl -f http://localhost:3002/health 2>/dev/null; then
+              echo "✅ Staging backend is healthy!"
+              break
+            fi
+            echo "Attempt $i/15..."
+            sleep 2
+          done
+          
+          # Cleanup
+          docker image prune -f
+          docker ps
+
+  deploy-to-production:
+    name: Deploy to Production
+    runs-on: self-hosted
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: http://csc519-109-host.csc.ncsu.edu
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to production
+        env:
+          BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend-image }}
+          FRONTEND_IMAGE: ${{ needs.build-and-push.outputs.frontend-image }}
+        run: |
+          # Login to registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          # Pull images
+          docker pull ${{ env.BACKEND_IMAGE }}
+          docker pull ${{ env.FRONTEND_IMAGE }}
+          
+          # Stop existing containers
           docker stop chefops-backend || true
           docker rm chefops-backend || true
+          docker stop chefops-frontend || true
+          docker rm chefops-frontend || true
+          
+          # Deploy backend
           docker run -d --name chefops-backend \
             --network chefops-network \
             -p 3000:3000 \
             -e NODE_ENV=production \
             -e PORT=3000 \
             --restart unless-stopped \
-            ghcr.io/${{ github.repository_owner }}/chefops-backend:latest
-
-      - name: Deploy frontend
-        run: |
-          docker stop chefops-frontend || true
-          docker rm chefops-frontend || true
+            ${{ env.BACKEND_IMAGE }}
+          
+          # Deploy frontend
           docker run -d --name chefops-frontend \
             --network chefops-network \
             -p 80:8080 \
             --restart unless-stopped \
-            ghcr.io/${{ github.repository_owner }}/chefops-frontend:latest
-
-      - name: Wait for backend health check
-        run: |
-          for i in {1..10}; do
-            if curl -f http://localhost:3000/health; then
-              echo "Backend is healthy!"
+            ${{ env.FRONTEND_IMAGE }}
+          
+          # Health checks
+          echo "Waiting for production backend..."
+          for i in {1..15}; do
+            if curl -f http://localhost:3000/health 2>/dev/null; then
+              echo "✅ Production backend is healthy!"
               break
             fi
-            echo "Waiting for backend... attempt $i"
-            sleep 5
+            echo "Attempt $i/15..."
+            sleep 2
           done
-
-      - name: Clean up old images
-        run: docker image prune -f
-
-      - name: Show running containers
-        run: docker ps
+          
+          # Cleanup
+          docker image prune -f
+          docker ps
