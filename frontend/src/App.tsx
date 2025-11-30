@@ -194,8 +194,7 @@ function App() {
                 color: "#1565c0",
               }}
             >
-              💡 <strong>Admin Tip:</strong> Click on any menu item to update
-              its price, availability, or special status
+              💡 <strong> Hello Customer!:</strong> Hope you like our food!
             </div>
             <MenuList items={menuItems} onSelectItem={setSelectedItem} />
           </>
